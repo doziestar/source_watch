@@ -1,7 +1,20 @@
 use std::any::Any;
 use async_trait::async_trait;
 use mongodb::bson::Document;
-use mongodb::{Cursor, error::Error};
+use mongodb::{Cursor, error::Error as MongoError};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DatabaseError {
+    // #[error("Database connection error")]
+    // ConnectionError(#[from] MongoError),
+    // #[error("Query execution error")]
+    // QueryError(#[from] MongoError),
+    #[error("Redis error")]
+    RedisError(#[from] redis::RedisError),
+    #[error("SQLx error")]
+    SqlxError(#[from] sqlx::Error),
+}
 
 /// Trait for Collection operations
 /// The trait provides methods to interact with a collection in a database
@@ -9,7 +22,7 @@ use mongodb::{Cursor, error::Error};
 #[async_trait]
 pub trait CollectionOps: Any + Send + Sync {
     fn name(&self) -> &str;
-    async fn find(&self, filter: Option<Document>) -> Result<Cursor<Document>, Error>;
+    async fn find(&self, filter: Option<Document>) -> Result<Cursor<Document>, MongoError>;
 
 }
 
