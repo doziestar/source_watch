@@ -21,7 +21,7 @@ impl CollectionOps for RedisCollectionType {
     }
 
     async fn find(&self, _filter: Option<Document>) -> Result<Cursor<Document>, Error> {
-        unimplemented!() // Redis doesn't use MongoDB's find method, so this is a placeholder.
+        unimplemented!()
     }
 }
 

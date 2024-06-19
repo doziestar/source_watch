@@ -17,7 +17,7 @@ impl CollectionOps for SqlCollectionType {
     }
 
     async fn find(&self, _filter: Option<Document>) -> Result<Cursor<Document>, Error> {
-        unimplemented!() // SQL doesn't use MongoDB's find method, so this is a placeholder.
+        unimplemented!()
     }
 }
 
