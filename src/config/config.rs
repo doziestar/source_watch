@@ -11,6 +11,7 @@ use std::fs;
 pub enum ConfigError {
     IoError(std::io::Error),
     ParseError(toml::de::Error),
+    FileNotFoundError,
 }
 
 impl fmt::Display for ConfigError {
@@ -18,6 +19,7 @@ impl fmt::Display for ConfigError {
         match self {
             ConfigError::IoError(err) => write!(f, "IO error: {}", err),
             ConfigError::ParseError(err) => write!(f, "Parse error: {}", err),
+            ConfigError::FileNotFoundError => write!(f, "File not found"),
         }
     }
 }
@@ -93,6 +95,9 @@ pub struct LogConfig {
 /// Loads configuration from a TOML file.
 impl Config {
     pub fn from_file(file: &str) -> Result<Config, ConfigError> {
+        if !std::path::Path::new(file).exists() {
+            return Err(ConfigError::FileNotFoundError);
+        }
         let config_str = fs::read_to_string(file)?;
         let config = toml::from_str(&config_str)?;
         Ok(config)
