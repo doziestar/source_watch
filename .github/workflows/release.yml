@@ -24,7 +24,7 @@ jobs:
         run: cargo build --release --verbose
 
       - name: Package
-        run: tar -czvf my_project.tar.gz target/release/my_project
+        run: tar -czvf source_watch.tar.gz target/release/source_watch
 
       - name: Create GitHub Release
         id: create_release
@@ -43,6 +43,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./my_project.tar.gz
-          asset_name: my_project.tar.gz
+          asset_path: ./source_watch.tar.gz
+          asset_name: source_watch.tar.gz
           asset_content_type: application/gzip
