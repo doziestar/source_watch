@@ -20,6 +20,9 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Change to source directory
+        run: cd src
+
       - name: Build
         run: cargo build --release --verbose
 

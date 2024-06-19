@@ -1,4 +1,4 @@
-use log::{info, warn, error};
+use log::{error, info, warn};
 
 pub fn init() {
     env_logger::init();
