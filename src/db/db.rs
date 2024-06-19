@@ -7,9 +7,11 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum DatabaseError {
     // #[error("Database connection error")]
-    // ConnectionError(#[from] MongoError),
+    // ConnectionError(#[from] Error),
     // #[error("Query execution error")]
-    // QueryError(#[from] MongoError),
+    // QueryError(#[from] Error),
+    #[error("MongoDB error")]
+    MongoError(#[from] MongoError),
     #[error("Redis error")]
     RedisError(#[from] redis::RedisError),
     #[error("SQLx error")]
