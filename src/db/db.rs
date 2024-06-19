@@ -1,15 +1,17 @@
-use std::any::Any;
 use async_trait::async_trait;
 use mongodb::bson::Document;
-use mongodb::{Cursor, error::Error as MongoError};
+use mongodb::{error::Error as MongoError, Cursor};
+use std::any::Any;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
     // #[error("Database connection error")]
-    // ConnectionError(#[from] MongoError),
+    // ConnectionError(#[from] Error),
     // #[error("Query execution error")]
-    // QueryError(#[from] MongoError),
+    // QueryError(#[from] Error),
+    #[error("MongoDB error")]
+    MongoError(#[from] MongoError),
     #[error("Redis error")]
     RedisError(#[from] redis::RedisError),
     #[error("SQLx error")]
@@ -23,7 +25,6 @@ pub enum DatabaseError {
 pub trait CollectionOps: Any + Send + Sync {
     fn name(&self) -> &str;
     async fn find(&self, filter: Option<Document>) -> Result<Cursor<Document>, MongoError>;
-
 }
 
 /// Trait for Database interactions
@@ -38,7 +39,9 @@ pub trait Database: Send + Sync {
     /// It initializes the database connection and returns the database struct
     /// The method is asynchronous and returns a future
     /// The method is generic over the Database trait
-    async fn establish_connection(connection_string: &str) -> Self where Self: Sized;
+    async fn establish_connection(connection_string: &str) -> Self
+    where
+        Self: Sized;
 
     /// List all collections in the database
     /// The method takes the database name as input

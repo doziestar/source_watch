@@ -1,9 +1,9 @@
+use crate::db::db::{CollectionOps, Database};
 use async_trait::async_trait;
 use mongodb::bson::Document;
-use mongodb::Cursor;
 use mongodb::error::Error;
+use mongodb::Cursor;
 use redis::AsyncCommands;
-use crate::db::db::{CollectionOps, Database};
 
 #[derive(Debug)]
 pub struct RedisDatabase {
@@ -21,7 +21,7 @@ impl CollectionOps for RedisCollectionType {
     }
 
     async fn find(&self, _filter: Option<Document>) -> Result<Cursor<Document>, Error> {
-        unimplemented!()  // Redis doesn't use MongoDB's find method, so this is a placeholder.
+        unimplemented!() // Redis doesn't use MongoDB's find method, so this is a placeholder.
     }
 }
 
@@ -33,19 +33,31 @@ impl Database for RedisDatabase {
     }
 
     async fn list_collections(&self, _db_name: &str) -> Vec<String> {
-        let mut con = self.client.get_multiplexed_async_connection().await.expect("Failed to connect to Redis");
+        let mut con = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
+            .expect("Failed to connect to Redis");
         let keys: Vec<String> = con.keys("*").await.expect("Failed to list keys");
         keys
     }
 
     async fn fetch_all_documents(&self, _db_name: &str, collection_name: &str) -> Vec<String> {
-        let mut con = self.client.get_multiplexed_async_connection().await.expect("Failed to connect to Redis");
+        let mut con = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
+            .expect("Failed to connect to Redis");
         let value: String = con.get(collection_name).await.expect("Failed to get value");
         vec![value]
     }
 
     async fn query(&self, _db_name: &str, collection_name: &str, query: &str) -> Vec<String> {
-        let mut con = self.client.get_multiplexed_async_connection().await.expect("Failed to connect to Redis");
+        let mut con = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
+            .expect("Failed to connect to Redis");
         let value: String = con.get(collection_name).await.expect("Failed to get value");
         if value.contains(query) {
             vec![value]
@@ -54,7 +66,11 @@ impl Database for RedisDatabase {
         }
     }
 
-    async fn get_collection(&self, _db_name: &str, collection_name: &str) -> Box<dyn CollectionOps> {
+    async fn get_collection(
+        &self,
+        _db_name: &str,
+        collection_name: &str,
+    ) -> Box<dyn CollectionOps> {
         Box::new(RedisCollectionType {
             name: collection_name.to_string(),
         })

@@ -1,10 +1,10 @@
+use crate::db::db::{CollectionOps, Database};
 use async_trait::async_trait;
 use mongodb::bson::Document;
-use mongodb::Cursor;
 use mongodb::error::Error;
+use mongodb::Cursor;
 use serde_json::Value;
 use sqlx::{Column, PgPool, Row, TypeInfo};
-use crate::db::db::{CollectionOps, Database};
 
 pub struct SqlCollectionType {
     name: String,
@@ -17,7 +17,7 @@ impl CollectionOps for SqlCollectionType {
     }
 
     async fn find(&self, _filter: Option<Document>) -> Result<Cursor<Document>, Error> {
-        unimplemented!()  // SQL doesn't use MongoDB's find method, so this is a placeholder.
+        unimplemented!() // SQL doesn't use MongoDB's find method, so this is a placeholder.
     }
 }
 
@@ -29,12 +29,17 @@ pub struct SqlDatabase {
 #[async_trait]
 impl Database for SqlDatabase {
     async fn establish_connection(pg_url: &str) -> Self {
-        let pool = PgPool::connect(pg_url).await.expect("Failed to create Postgres pool");
+        let pool = PgPool::connect(pg_url)
+            .await
+            .expect("Failed to create Postgres pool");
         SqlDatabase { pool }
     }
 
     async fn list_collections(&self, db_name: &str) -> Vec<String> {
-        let query = format!("SELECT table_name FROM information_schema.tables WHERE table_schema = '{}'", db_name);
+        let query = format!(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = '{}'",
+            db_name
+        );
         let rows = sqlx::query(&query)
             .fetch_all(&self.pool)
             .await
@@ -49,7 +54,9 @@ impl Database for SqlDatabase {
             .await
             .expect("Failed to fetch documents");
 
-        rows.into_iter().map(|row| row_to_json_string(&row)).collect()
+        rows.into_iter()
+            .map(|row| row_to_json_string(&row))
+            .collect()
     }
 
     async fn query(&self, _db_name: &str, collection_name: &str, query: &str) -> Vec<String> {
@@ -59,10 +66,16 @@ impl Database for SqlDatabase {
             .await
             .expect("Failed to query database");
 
-        rows.into_iter().map(|row| row_to_json_string(&row)).collect()
+        rows.into_iter()
+            .map(|row| row_to_json_string(&row))
+            .collect()
     }
 
-    async fn get_collection(&self, _db_name: &str, collection_name: &str) -> Box<dyn CollectionOps> {
+    async fn get_collection(
+        &self,
+        _db_name: &str,
+        collection_name: &str,
+    ) -> Box<dyn CollectionOps> {
         Box::new(SqlCollectionType {
             name: collection_name.to_string(),
         })
@@ -79,8 +92,12 @@ fn row_to_json(row: &sqlx::postgres::PgRow) -> Value {
     for column in row.columns() {
         let value = match column.type_info().name() {
             "BOOL" => row.try_get::<bool, _>(column.name()).map(Value::Bool),
-            "INT4" | "INT8" => row.try_get::<i64, _>(column.name()).map(|v| Value::Number(v.into())),
-            "FLOAT4" | "FLOAT8" => row.try_get::<f64, _>(column.name()).map(|v| Value::Number(serde_json::Number::from_f64(v).unwrap())),
+            "INT4" | "INT8" => row
+                .try_get::<i64, _>(column.name())
+                .map(|v| Value::Number(v.into())),
+            "FLOAT4" | "FLOAT8" => row
+                .try_get::<f64, _>(column.name())
+                .map(|v| Value::Number(serde_json::Number::from_f64(v).unwrap())),
             "TEXT" | "VARCHAR" => row.try_get::<String, _>(column.name()).map(Value::String),
             _ => Ok(Value::Null),
         };
