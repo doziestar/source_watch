@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use futures::stream::StreamExt;
 use mongodb::bson::Document;
 use mongodb::{error::Error, options::ClientOptions, Client, Collection, Cursor};
-use std::sync::Arc;
 
 /// MongoDB collection type
 pub struct MongoCollectionType {
