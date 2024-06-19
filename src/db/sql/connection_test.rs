@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::db::db::{CollectionOps, Database};
     use async_trait::async_trait;
     use mockall::mock;

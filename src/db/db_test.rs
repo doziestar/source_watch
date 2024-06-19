@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::db::db::{CollectionOps, Database};
+    use crate::db::db::CollectionOps;
     use async_trait::async_trait;
-    use futures::stream::StreamExt;
     use mockall::mock;
     use mongodb::bson::Document;
     use mongodb::{error::Error, Cursor};
