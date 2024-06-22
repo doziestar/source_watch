@@ -1,0 +1,16 @@
+
+            [databases.mysql]
+            name = "MySQL Database"
+            url = "mysql://user:password@localhost:3306/test"
+
+            [databases.postgresql]
+            name = "PostgreSQL Database"
+            url = "postgres://user:password@localhost:5432/test"
+
+            [logs.file]
+            name = "Log File"
+            path = "/var/log/app.log"
+            format = "json"
+            encoding = "utf-8"
+            interval = 1
+        
