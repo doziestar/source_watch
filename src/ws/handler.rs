@@ -1,15 +1,16 @@
-use std::sync::{Arc, Mutex};
-use tokio::sync::broadcast;
-use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade}};
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::response::IntoResponse;
 use futures::{SinkExt, StreamExt};
+use std::sync::{Arc, Mutex};
+use tokio::sync::broadcast;
+use crate::db::query_builder::DatabaseManager;
 
 /// Shared state to keep track of the number of connected clients
 pub struct AppState {
     pub(crate) tx: broadcast::Sender<String>,
     pub(crate) client_count: Mutex<usize>,
+    pub db_manager: DatabaseManager,
 }
 
 pub async fn ws_handler(
