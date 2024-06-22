@@ -1,18 +1,18 @@
-use env_logger::Env;
-use iced::widget::{button, column, text, Button, Column};
-use iced::{executor, Application, Command, Element, Settings, Theme};
-use log::info;
+use crate::ws::handler::ws_handler;
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     response::IntoResponse,
     routing::get,
     Router,
 };
+use env_logger::Env;
 use futures::{sink::SinkExt, stream::StreamExt};
+use iced::widget::{button, column, text, Button, Column};
+use iced::{executor, Application, Command, Element, Settings, Theme};
+use log::info;
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 use ws::handler::AppState;
-use crate::ws::handler::ws_handler;
 
 mod config;
 mod db;
@@ -20,7 +20,6 @@ mod logging;
 mod models;
 mod utils;
 mod ws;
-
 
 /// Main function to start the SourceWatch application
 /// It initializes the logger and starts the GUI
@@ -47,5 +46,7 @@ async fn main() {
     let addr = "0.0.0.0:6262";
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     println!("Listening on {}", addr);
-    axum::serve(listener, app.into_make_service()).await.unwrap();
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }

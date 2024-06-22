@@ -1,23 +1,29 @@
 #[cfg(test)]
 mod tests {
-    use crate::db::db::CollectionOps;
+    use super::*;
+    use mockall::automock;
+    use mockall::predicate::*;
+    use serde_json::json;
+    use std::collections::HashMap;
     use async_trait::async_trait;
-    use mockall::mock;
-    use mongodb::bson::Document;
-    use mongodb::{error::Error, Cursor};
 
-    mock! {
-        pub CollectionType {}
+    #[automock]
+    #[async_trait]
+    pub trait DatabasePool: Send + Sync {
+        async fn execute(&self, query: &str, params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, query_builder::QueryBuilderError>;
+    }
 
-        #[async_trait]
-        impl CollectionOps for CollectionType {
-            fn name(&self) -> &str {
-                ""
-            }
+    #[tokio::test]
+    async fn test_execute() {
+        let mut mock = MockDatabasePool::new();
+        mock.expect_execute()
+            .with(eq("SELECT * FROM users WHERE id = $1"), eq(vec![json!(1)]))
+            .times(1)
+            .returning(|_, _| {
+                Ok(vec![HashMap::new()])
+            });
 
-            async fn find(&self, _filter: Option<Document>) -> Result<Cursor<Document>, Error> {
-                Ok(Cursor::new(vec![]))
-            }
-        }
+        let result = mock.execute("SELECT * FROM users WHERE id = $1", vec![json!(1)]).await;
+        assert!(result.is_ok());
     }
 }

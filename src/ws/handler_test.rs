@@ -1,11 +1,11 @@
-use axum::{Router, routing::get};
+use axum::{routing::get, Router};
 use futures::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
-use crate::{AppState, ws_handler};
+use crate::{ws_handler, AppState};
 
 #[cfg(test)]
 mod test {
@@ -13,9 +13,9 @@ mod test {
 
     mod test_utils {
         use super::*;
-        use tokio_tungstenite::WebSocketStream;
         use tokio::net::TcpStream;
         use tokio_tungstenite::MaybeTlsStream;
+        use tokio_tungstenite::WebSocketStream;
 
         pub struct TestApp {
             pub addr: SocketAddr,
@@ -47,7 +47,10 @@ mod test {
                 axum::serve(listener, app).await.unwrap();
             });
 
-            TestApp { addr: server_addr, state }
+            TestApp {
+                addr: server_addr,
+                state,
+            }
         }
 
         pub struct TestClient {
@@ -62,11 +65,17 @@ mod test {
             }
 
             pub async fn send(&mut self, message: &str) {
-                self.ws_stream.send(Message::Text(message.to_string())).await.unwrap();
+                self.ws_stream
+                    .send(Message::Text(message.to_string()))
+                    .await
+                    .unwrap();
             }
 
             pub async fn send_raw(&mut self, data: &[u8]) {
-                self.ws_stream.send(Message::Binary(data.to_vec())).await.unwrap();
+                self.ws_stream
+                    .send(Message::Binary(data.to_vec()))
+                    .await
+                    .unwrap();
             }
 
             pub async fn receive(&mut self) -> String {
@@ -87,7 +96,11 @@ mod test {
         let app = spawn_app().await;
         let url = format!("ws://{}/ws", app.addr);
         let (_, response) = connect_async(url).await.expect("Failed to connect");
-        assert_eq!(response.status(), 101, "WebSocket upgrade should be successful");
+        assert_eq!(
+            response.status(),
+            101,
+            "WebSocket upgrade should be successful"
+        );
     }
 
     #[tokio::test]
@@ -102,8 +115,14 @@ mod test {
         let received1 = client1.receive().await;
         let received2 = client2.receive().await;
 
-        assert_eq!(received1, test_message, "Client 1 should receive its own message");
-        assert_eq!(received2, test_message, "Client 2 should receive the broadcast message");
+        assert_eq!(
+            received1, test_message,
+            "Client 1 should receive its own message"
+        );
+        assert_eq!(
+            received2, test_message,
+            "Client 2 should receive the broadcast message"
+        );
     }
 
     #[tokio::test]
@@ -111,18 +130,34 @@ mod test {
         let app = spawn_app().await;
 
         let client1 = TestClient::new(&app.addr).await;
-        assert_eq!(app.client_count(), 1, "Client count should be 1 after first connection");
+        assert_eq!(
+            app.client_count(),
+            1,
+            "Client count should be 1 after first connection"
+        );
 
         let client2 = TestClient::new(&app.addr).await;
-        assert_eq!(app.client_count(), 2, "Client count should be 2 after second connection");
+        assert_eq!(
+            app.client_count(),
+            2,
+            "Client count should be 2 after second connection"
+        );
 
         drop(client1);
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        assert_eq!(app.client_count(), 1, "Client count should be 1 after disconnection");
+        assert_eq!(
+            app.client_count(),
+            1,
+            "Client count should be 1 after disconnection"
+        );
 
         drop(client2);
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        assert_eq!(app.client_count(), 0, "Client count should be 0 after all disconnections");
+        assert_eq!(
+            app.client_count(),
+            0,
+            "Client count should be 0 after all disconnections"
+        );
     }
 
     #[tokio::test]
@@ -136,7 +171,11 @@ mod test {
         // Give some time for the server to process the disconnection
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-        assert_eq!(app.client_count(), 0, "Client count should be 0 after abrupt disconnection");
+        assert_eq!(
+            app.client_count(),
+            0,
+            "Client count should be 0 after abrupt disconnection"
+        );
     }
 
     #[tokio::test]
@@ -149,11 +188,18 @@ mod test {
         client.send_raw(&malformed_message).await;
 
         // The server should not crash, and the client should still be connected
-        assert_eq!(app.client_count(), 1, "Client should still be connected after malformed message");
+        assert_eq!(
+            app.client_count(),
+            1,
+            "Client should still be connected after malformed message"
+        );
 
         // Client should be able to send and receive normal messages after malformed message
         client.send("Valid message").await;
         let received = client.receive().await;
-        assert_eq!(received, "Valid message", "Server should handle valid messages after receiving malformed ones");
+        assert_eq!(
+            received, "Valid message",
+            "Server should handle valid messages after receiving malformed ones"
+        );
     }
 }

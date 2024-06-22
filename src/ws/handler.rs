@@ -1,10 +1,9 @@
-use std::sync::{Arc, Mutex};
-use tokio::sync::broadcast;
-use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade}};
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::response::IntoResponse;
 use futures::{SinkExt, StreamExt};
+use std::sync::{Arc, Mutex};
+use tokio::sync::broadcast;
 
 /// Shared state to keep track of the number of connected clients
 pub struct AppState {

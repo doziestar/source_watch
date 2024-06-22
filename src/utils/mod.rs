@@ -1,2 +1,2 @@
 mod datetime;
-mod errors;
+pub(crate) mod errors;
