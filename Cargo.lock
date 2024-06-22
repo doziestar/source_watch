@@ -4638,6 +4638,7 @@ dependencies = [
  "sqlx",
  "thiserror",
  "tokio",
+ "tokio-tungstenite",
  "toml",
 ]
 
