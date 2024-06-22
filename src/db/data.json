@@ -1,0 +1,14 @@
+{
+  "database_type": "PostgreSQL",
+  "operation": "Select",
+  "table": "users",
+  "fields": ["id", "name", "email"],
+  "conditions": [
+    {"field": "age", "operator": "Gt", "value": "18"}
+  ],
+  "order_by": [
+    {"field": "name", "direction": "Asc"}
+  ],
+  "limit": 10,
+  "offset": 0
+}

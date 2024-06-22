@@ -1,10 +1,14 @@
-use super::*;
+use crate::db::query_builder::{
+    QueryBuilder, QueryBuilderError, QueryOperation, Operator, OrderDirection, Field, DatabasePool
+};
+use async_trait::async_trait;
 use cdrs_tokio::query::QueryValues;
 use cdrs_tokio::types::prelude::*;
-use serde_json::json;
-use crate::db::query_builder::{Operator, OrderDirection, QueryBuilder, QueryBuilderError, QueryOperation};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use crate::db::DatabasePool;
 
-pub fn build_query(builder: &QueryBuilder) -> Result<String> {
+pub fn build_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     match builder.operation {
         QueryOperation::Select => build_select_query(builder),
         QueryOperation::Insert => build_insert_query(builder),
@@ -14,7 +18,7 @@ pub fn build_query(builder: &QueryBuilder) -> Result<String> {
     }
 }
 
-fn build_select_query(builder: &QueryBuilder) -> Result<String> {
+fn build_select_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     let fields = if builder.fields.is_empty() {
         "*".to_string()
     } else {
@@ -44,7 +48,7 @@ fn build_select_query(builder: &QueryBuilder) -> Result<String> {
     Ok(query)
 }
 
-fn build_insert_query(builder: &QueryBuilder) -> Result<String> {
+fn build_insert_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     if builder.fields.is_empty() || builder.values.is_empty() {
         return Err(QueryBuilderError::MissingField("fields or values".to_string()));
     }
@@ -55,7 +59,7 @@ fn build_insert_query(builder: &QueryBuilder) -> Result<String> {
     Ok(format!("INSERT INTO {} ({}) VALUES ({})", builder.table.as_str(), fields, placeholders))
 }
 
-fn build_update_query(builder: &QueryBuilder) -> Result<String> {
+fn build_update_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     if builder.fields.is_empty() || builder.values.is_empty() {
         return Err(QueryBuilderError::MissingField("fields or values".to_string()));
     }
@@ -107,9 +111,9 @@ pub struct CassandraPool {
     session: cdrs_tokio::Session<cdrs_tokio::transport::TransportTcp>,
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl DatabasePool for CassandraPool {
-    async fn execute(&self, query: &str, params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>> {
+    async fn execute(&self, query: &str, params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, QueryBuilderError> {
         let values: Vec<_> = params.into_iter().map(|v| v.into()).collect();
         let query_values = QueryValues::SimpleValues(values);
 

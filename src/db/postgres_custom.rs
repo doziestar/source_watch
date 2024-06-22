@@ -1,5 +1,10 @@
-use super::*;
-use crate::db::query_builder::{QueryBuilder, QueryBuilderError, QueryOperation};
+use crate::db::query_builder::{
+    QueryBuilder, QueryBuilderError, QueryOperation, Operator, OrderDirection, Field, DatabasePool
+};
+use async_trait::async_trait;
+use serde_json::Value;
+use std::collections::HashMap;
+use tokio_postgres;
 
 pub fn build_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     let mut query = match builder.operation {
@@ -32,7 +37,7 @@ pub fn build_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> 
         QueryOperation::Aggregate => return Err(QueryBuilderError::InvalidOperation),
     };
 
-    if !builder.conditions.isEmpty() {
+    if !builder.conditions.is_empty() {
         query += " WHERE ";
         query += &builder.conditions.iter().enumerate()
             .map(|(i, c)| format!("{} {} ${}", c.field.as_str(), operator_to_sql(&c.operator), builder.values.len() + i + 1))
@@ -75,7 +80,7 @@ pub struct PostgresPool {
     pool: deadpool_postgres::Pool,
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl DatabasePool for PostgresPool {
     async fn execute(&self, query: &str, params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, QueryBuilderError> {
         let client = self.pool.get().await.map_err(|e| QueryBuilderError::DatabaseError(e.to_string()))?;
