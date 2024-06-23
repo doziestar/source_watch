@@ -1,6 +1,6 @@
 use serde_json::Value;
 use std::collections::HashMap;
-use crate::db::{cassandra, DatabasePool, mongodb_custom, postgres_custom, redis_custom};
+use crate::db::{DatabasePool, elasticsearch_custom, mongodb_custom, postgres_custom, redis_custom};
 use crate::utils::errors::QueryBuilderError;
 
 // Type-safe field and table names
@@ -158,8 +158,8 @@ impl QueryBuilder {
             DatabaseType::PostgreSQL => postgres_custom::build_query(self),
             DatabaseType::MongoDB => mongodb_custom::build_query(self),
             DatabaseType::Redis => redis_custom::build_query(self),
-            DatabaseType::Cassandra => cassandra::build_query(self),
-            DatabaseType::Elasticsearch => elasticsearch::build_query(self),
+            DatabaseType::Cassandra => unimplemented!(),
+            DatabaseType::Elasticsearch => elasticsearch_custom::build_query(self),
         }
     }
 }

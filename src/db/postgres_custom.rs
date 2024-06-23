@@ -171,34 +171,29 @@ impl DatabasePool for PostgresPool {
 
 fn postgres_value_to_json(row: &tokio_postgres::Row, column: &tokio_postgres::Column) -> Value {
     let col_idx = column.ordinal();
-    match column.type_() {
-        &Type::BOOL => json!(row.try_get::<_, Option<bool>>(col_idx).unwrap_or(None)),
-        &Type::INT2 => json!(row.try_get::<_, Option<i16>>(col_idx).unwrap_or(None)),
-        &Type::INT4 => json!(row.try_get::<_, Option<i32>>(col_idx).unwrap_or(None)),
-        &Type::INT8 => json!(row.try_get::<_, Option<i64>>(col_idx).unwrap_or(None)),
-        &Type::FLOAT4 => json!(row.try_get::<_, Option<f32>>(col_idx).unwrap_or(None)),
-        &Type::FLOAT8 => json!(row.try_get::<_, Option<f64>>(col_idx).unwrap_or(None)),
-        &Type::VARCHAR | &Type::TEXT | &Type::BPCHAR => json!(row.try_get::<_, Option<String>>(col_idx).unwrap_or(None)),
-        &Type::JSON | &Type::JSONB => {
-            match row.try_get::<_, Option<serde_json::Value>>(col_idx) {
-                Ok(Some(v)) => v,
-                _ => Value::Null,
-            }
-        },
-        &Type::TIMESTAMP => {
-            let dt: Option<chrono::NaiveDateTime> = row.try_get(col_idx).unwrap_or(None);
+    match *column.type_() {
+        Type::BOOL => json!(row.get::<_, Option<bool>>(col_idx)),
+        Type::INT2 => json!(row.get::<_, Option<i16>>(col_idx)),
+        Type::INT4 => json!(row.get::<_, Option<i32>>(col_idx)),
+        Type::INT8 => json!(row.get::<_, Option<i64>>(col_idx)),
+        Type::FLOAT4 => json!(row.get::<_, Option<f32>>(col_idx)),
+        Type::FLOAT8 => json!(row.get::<_, Option<f64>>(col_idx)),
+        Type::VARCHAR | Type::TEXT | Type::BPCHAR => json!(row.get::<_, Option<String>>(col_idx)),
+        Type::JSON | Type::JSONB => json!(row.get::<_, Option<serde_json::Value>>(col_idx)),
+        Type::TIMESTAMP => {
+            let dt: Option<chrono::NaiveDateTime> = row.get(col_idx);
             json!(dt.map(|d| d.to_string()))
         },
-        &Type::TIMESTAMPTZ => {
-            let dt: Option<chrono::DateTime<chrono::Utc>> = row.try_get(col_idx).unwrap_or(None);
+        Type::TIMESTAMPTZ => {
+            let dt: Option<chrono::DateTime<chrono::Utc>> = row.get(col_idx);
             json!(dt.map(|d| d.to_rfc3339()))
         },
-        &Type::DATE => {
-            let d: Option<chrono::NaiveDate> = row.try_get(col_idx).unwrap_or(None);
+        Type::DATE => {
+            let d: Option<chrono::NaiveDate> = row.get(col_idx);
             json!(d.map(|d| d.to_string()))
         },
-        &Type::TIME => {
-            let t: Option<chrono::NaiveTime> = row.try_get(col_idx).unwrap_or(None);
+        Type::TIME => {
+            let t: Option<chrono::NaiveTime> = row.get(col_idx);
             json!(t.map(|t| t.to_string()))
         },
         _ => Value::Null,
