@@ -1,7 +1,7 @@
 use serde_json::Value;
 use std::collections::HashMap;
-use diesel::RunQueryDsl;
-use thiserror::Error;
+use crate::db::{cassandra, DatabasePool, mongodb_custom, postgres_custom, redis_custom};
+use crate::utils::errors::QueryBuilderError;
 
 // Type-safe field and table names
 macro_rules! define_type_safe_names {
@@ -35,7 +35,7 @@ macro_rules! define_type_safe_names {
 define_type_safe_names!(Field, Id, Name, Email, Age, CreatedAt, UpdatedAt);
 define_type_safe_names!(Table, Users, Posts, Comments, Products, Orders);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DatabaseType {
     PostgreSQL,
     MongoDB,
@@ -85,19 +85,6 @@ pub enum OrderDirection {
     Desc,
 }
 
-#[derive(Error, Debug)]
-pub enum QueryBuilderError {
-    #[error("Invalid operation for database type")]
-    InvalidOperation,
-    #[error("Missing required field: {0}")]
-    MissingField(String),
-    #[error("Unsupported database type")]
-    UnsupportedDatabaseType,
-    #[error("Invalid query: {0}")]
-    InvalidQuery(String),
-    #[error("Database error: {0}")]
-    DatabaseError(String),
-}
 
 pub struct QueryBuilder {
     pub database_type: DatabaseType,
@@ -168,9 +155,9 @@ impl QueryBuilder {
 
     pub fn build(&self) -> Result<String, QueryBuilderError> {
         match self.database_type {
-            DatabaseType::PostgreSQL => postgresql::build_query(self),
-            DatabaseType::MongoDB => mongodb::build_query(self),
-            DatabaseType::Redis => redis::build_query(self),
+            DatabaseType::PostgreSQL => postgres_custom::build_query(self),
+            DatabaseType::MongoDB => mongodb_custom::build_query(self),
+            DatabaseType::Redis => redis_custom::build_query(self),
             DatabaseType::Cassandra => cassandra::build_query(self),
             DatabaseType::Elasticsearch => elasticsearch::build_query(self),
         }
@@ -197,5 +184,6 @@ impl DatabaseManager {
             .ok_or_else(|| QueryBuilderError::UnsupportedDatabaseType)?;
         let query = query_builder.build()?;
         pool.execute(&query, query_builder.values.clone()).await
+            .map_err(|e| QueryBuilderError::DatabaseError(e.to_string()))
     }
 }

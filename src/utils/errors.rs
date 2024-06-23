@@ -1,4 +1,5 @@
 use std::fmt;
+use thiserror::Error;
 
 #[derive(Debug)]
 pub struct AppError {
@@ -25,4 +26,18 @@ pub enum DatabaseError {
     CollectionNotFound(String),
     #[error("Unsupported operation: {0}")]
     UnsupportedOperation(String),
+}
+
+#[derive(Error, Debug)]
+pub enum QueryBuilderError {
+    #[error("Invalid operation for database type")]
+    InvalidOperation,
+    #[error("Missing required field: {0}")]
+    MissingField(String),
+    #[error("Unsupported database type")]
+    UnsupportedDatabaseType,
+    #[error("Invalid query: {0}")]
+    InvalidQuery(String),
+    #[error("Database error: {0}")]
+    DatabaseError(String),
 }
