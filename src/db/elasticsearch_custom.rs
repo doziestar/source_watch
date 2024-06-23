@@ -1,8 +1,10 @@
 use super::*;
 use elasticsearch::{Elasticsearch, http::transport::Transport, SearchParts, CreateParts, UpdateParts, DeleteParts};
+use elasticsearch::cat::CatIndicesParts;
 use elasticsearch::http::request::JsonBody;
 use serde_json::json;
-use crate::db::query_builder::{Operator, QueryBuilder, QueryBuilderError, QueryOperation};
+use crate::db::query_builder::{Operator, QueryBuilder, QueryOperation, OrderDirection};
+use crate::utils::errors::QueryBuilderError;
 
 pub fn build_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     let query = match builder.operation {
@@ -127,28 +129,127 @@ pub struct ElasticsearchPool {
     client: Elasticsearch,
 }
 
+impl ElasticsearchPool {
+    pub async fn new(connection_string: &str) -> Result<Self, DatabaseError> {
+        let transport = elasticsearch::http::transport::Transport::single_node(connection_string)
+            .map_err(|e| DatabaseError::ConnectionError(e.to_string()))?;
+        let client = Elasticsearch::new(transport);
+        Ok(ElasticsearchPool { client })
+    }
+}
+
 #[async_trait::async_trait]
 impl DatabasePool for ElasticsearchPool {
-    async fn execute(&self, query: &str, _params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, QueryBuilderError> {
+    async fn execute(&self, query: &str, _params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, DatabaseError> {
         let query: serde_json::Value = serde_json::from_str(query)
-            .map_err(|e| QueryBuilderError::InvalidQuery(e.to_string()))?;
+            .map_err(|e| DatabaseError::InvalidQuery(e.to_string()))?;
 
         let response = self.client
             .search(SearchParts::None)
             .body(query)
             .send()
             .await
-            .map_err(|e| QueryBuilderError::DatabaseError(e.to_string()))?;
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
 
         let response_body = response.json::<serde_json::Value>().await
-            .map_err(|e| QueryBuilderError::DatabaseError(e.to_string()))?;
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
 
-        let hits = response_body["hits"]["hits"].as_array()
-            .ok_or_else(|| QueryBuilderError::DatabaseError("No hits in response".to_string()))?;
+        let hits = response_body["hits"]["hits"]
+            .as_array()
+            .ok_or_else(|| DatabaseError::QueryError("Invalid response format".to_string()))?;
 
-        Ok(hits.iter().map(|hit| {
-            let source = hit["_source"].as_object().unwrap();
-            source.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-        }).collect())
+        Ok(hits
+            .iter()
+            .map(|hit| {
+                hit["_source"]
+                    .as_object()
+                    .map(|obj| {
+                        obj.iter()
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect::<HashMap<String, Value>>()
+                    })
+                    .unwrap_or_default()
+            })
+            .collect())
+    }
+}
+
+#[async_trait::async_trait]
+impl Database for ElasticsearchPool {
+    async fn connect(connection_string: &str) -> Result<Self, DatabaseError> {
+        Self::new(connection_string).await
+    }
+
+    async fn disconnect(&self) -> Result<(), DatabaseError> {
+        // Elasticsearch client doesn't require explicit disconnection
+        Ok(())
+    }
+
+    async fn execute_query(&self, query: &str) -> Result<Vec<Value>, DatabaseError> {
+        let query: serde_json::Value = serde_json::from_str(query)
+            .map_err(|e| DatabaseError::InvalidQuery(e.to_string()))?;
+
+        let response = self.client
+            .search(SearchParts::None)
+            .body(query)
+            .send()
+            .await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        let response_body = response.json::<serde_json::Value>().await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        Ok(vec![response_body])
+    }
+
+    async fn list_databases(&self) -> Result<Vec<String>, DatabaseError> {
+        // Elasticsearch doesn't have a concept of databases, return indices instead
+        let response = self.client
+            .cat()
+            .indices(CatIndicesParts::None)
+            .format("json")
+            .send()
+            .await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        let indices: Vec<serde_json::Value> = response.json().await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        Ok(indices
+            .into_iter()
+            .filter_map(|index| index["index"].as_str().map(String::from))
+            .collect())
+    }
+
+    async fn list_collections(&self, index: &str) -> Result<Vec<String>, DatabaseError> {
+        // Elasticsearch doesn't have collections, return mappings instead
+        let response = self.client
+            .indices()
+            .get_mapping(elasticsearch::indices::IndicesGetMappingParts::Index(&[index]))
+            .send()
+            .await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        let mappings: serde_json::Value = response.json().await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        Ok(mappings[index]["mappings"]["properties"]
+            .as_object()
+            .map(|obj| obj.keys().cloned().collect())
+            .unwrap_or_default())
+    }
+
+    async fn get_schema(&self, index: &str, _collection: &str) -> Result<Value, DatabaseError> {
+        let response = self.client
+            .indices()
+            .get_mapping(elasticsearch::indices::IndicesGetMappingParts::Index(&[index]))
+            .send()
+            .await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        let mappings: serde_json::Value = response.json().await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        Ok(mappings[index]["mappings"].clone())
     }
 }

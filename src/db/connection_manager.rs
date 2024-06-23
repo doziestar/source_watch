@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use sqlx::Database;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use crate::db::Database;
 

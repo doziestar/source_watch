@@ -1,7 +1,8 @@
 use super::*;
 use mongodb::{bson::{doc, Document, Bson}, bson, options::FindOptions};
 use serde_json::json;
-use crate::db::query_builder::{Condition, Operator, OrderDirection, QueryBuilder, QueryBuilderError, QueryOperation};
+use crate::db::query_builder::{Condition, Operator, OrderDirection, QueryBuilder, QueryOperation};
+use crate::utils::errors::{QueryBuilderError, DatabaseError};
 
 pub fn build_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     let query = match builder.operation {
@@ -24,14 +25,19 @@ fn build_find_query(builder: &QueryBuilder) -> Result<Document, QueryBuilderErro
     }
 
     if !builder.fields.is_empty() {
-        let projection = builder.fields.iter().map(|f| (f.as_str(), 1)).collect();
+        let projection: Document = builder.fields.iter()
+            .map(|f| (f.as_str().to_string(), Bson::Int32(1)))
+            .collect();
         options.projection = Some(projection);
     }
 
     if !builder.order_by.is_empty() {
-        let sort = builder.order_by.iter().map(|o| {
-            (o.field.as_str(), if o.direction == OrderDirection::Asc { 1 } else { -1 })
-        }).collect();
+        let sort: Document = builder.order_by.iter()
+            .map(|o| {
+                (o.field.as_str().to_string(),
+                 if o.direction == OrderDirection::Asc { Bson::Int32(1) } else { Bson::Int32(-1) })
+            })
+            .collect();
         options.sort = Some(sort);
     }
 
@@ -50,14 +56,15 @@ fn build_find_query(builder: &QueryBuilder) -> Result<Document, QueryBuilderErro
     })
 }
 
+
 fn build_insert_query(builder: &QueryBuilder) -> Result<Document, QueryBuilderError> {
     if builder.fields.is_empty() || builder.values.is_empty() {
         return Err(QueryBuilderError::MissingField("fields or values".to_string()));
     }
 
-    let doc = builder.fields.iter().zip(builder.values.iter())
-        .map(|(f, v)| (f.as_str(), bson::to_bson(v).unwrap()))
-        .collect::<Document>();
+    let doc: Document = builder.fields.iter().zip(builder.values.iter())
+        .map(|(f, v)| (f.as_str().to_string(), bson::to_bson(v).unwrap()))
+        .collect();
 
     Ok(doc! {
         "insert": builder.table.as_str(),
@@ -78,7 +85,7 @@ fn build_update_query(builder: &QueryBuilder) -> Result<Document, QueryBuilderEr
 
     let update = doc! {
         "$set": builder.fields.iter().zip(builder.values.iter())
-            .map(|(f, v)| (f.as_str(), bson::to_bson(v).unwrap()))
+            .map(|(f, v)| (f.as_str().to_string(), bson::to_bson(v).unwrap()))
             .collect::<Document>()
     };
 
@@ -118,19 +125,14 @@ fn build_aggregate_query(builder: &QueryBuilder) -> Result<Document, QueryBuilde
     }
 
     if !builder.fields.is_empty() {
-        let project = builder.fields.iter().map(|f| (f.as_str(), 1)).collect();
+        // let project: Document = builder.fields.iter().map(|f| (f.as_str().to_string(), 1)).collect();
         pipeline.push(doc! {
-            "$project": project
+            // "$project": builder.fields.iter().map(|f| (f.as_str().to_string(), 1)).collect::<Document>()
         });
     }
 
     if !builder.order_by.is_empty() {
-        let sort = builder.order_by.iter().map(|o| {
-            (o.field.as_str(), if o.direction == OrderDirection::Asc { 1 } else { -1 })
-        }).collect();
-        pipeline.push(doc! {
-            "$sort": sort
-        });
+        println!("Order by not supported in MongoDB aggregate")
     }
 
     if let Some(offset) = builder.offset {
@@ -175,14 +177,23 @@ pub struct MongoPool {
     db_name: String,
 }
 
+impl MongoPool {
+    pub async fn new(connection_string: &str) -> Result<Self, DatabaseError> {
+        let client = mongodb::Client::with_uri_str(connection_string).await
+            .map_err(|e| DatabaseError::ConnectionError(e.to_string()))?;
+        let db_name = "test".to_string();
+        Ok(MongoPool { client, db_name })
+    }
+}
+
 #[async_trait::async_trait]
 impl DatabasePool for MongoPool {
-    async fn execute(&self, query: &str, _params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, QueryBuilderError> {
+    async fn execute(&self, query: &str, _params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, DatabaseError> {
         let db = self.client.database(&self.db_name);
-        let command: Document = serde_json::from_str(query).map_err(|e| QueryBuilderError::InvalidQuery(e.to_string()))?;
+        let command: Document = serde_json::from_str(query).map_err(|e| DatabaseError::InvalidQuery(e.to_string()))?;
 
         let result = db.run_command(command, None).await
-            .map_err(|e| QueryBuilderError::DatabaseError(e.to_string()))?;
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
 
         let result_vec = match result.get("cursor") {
             Some(cursor) => {
@@ -208,7 +219,10 @@ fn bson_to_json(bson: &Bson) -> Value {
         Bson::Double(v) => json!(v),
         Bson::String(v) => json!(v),
         Bson::Array(v) => json!(v.iter().map(bson_to_json).collect::<Vec<_>>()),
-        Bson::Document(v) => json!(v.iter().map(|(k, v)| (k, bson_to_json(v))).collect::<serde_json::Map<_, _>>()),
+        Bson::Document(v) => {
+            let map: serde_json::Map<String, Value> = v.iter().map(|(k, v)| (k.to_string(), bson_to_json(v))).collect();
+            Value::Object(map)
+        },
         Bson::Boolean(v) => json!(v),
         Bson::Null => json!(null),
         Bson::Int32(v) => json!(v),

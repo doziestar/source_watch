@@ -7,13 +7,12 @@ use axum::{
 };
 use env_logger::Env;
 use futures::{sink::SinkExt, stream::StreamExt};
-use iced::widget::{button, column, text, Button, Column};
-use iced::{executor, Application, Command, Element, Settings, Theme};
-use log::info;
+use log::{info, error};
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 use ws::handler::AppState;
-use crate::db::query_builder::{DatabaseManager, DatabaseType, DatabasePool};
+use crate::db::query_builder::DatabaseManager;
+use crate::db::db_manager;
 
 mod config;
 mod db;
@@ -29,15 +28,14 @@ async fn main() {
 
     let (tx, _) = broadcast::channel(100);
 
-    let mut db_manager = DatabaseManager::new();
+    let db_manager = match db_manager::initialize_db_manager().await {
+        Ok(manager) => manager,
+        Err(e) => {
+            error!("Failed to initialize database manager: {}", e);
+            return;
+        }
+    };
 
-    // Add PostgreSQL pool
-    let postgres_pool = Box::new(db::postgres_custom::PostgresPool::new("your_postgres_connection_string_here").await);
-    db_manager.add_pool(DatabaseType::PostgreSQL, postgres_pool);
-
-    // Add MongoDB pool
-    let mongo_pool = Box::new(db::mongodb_custom::MongoPool::new("your_mongodb_connection_string_here").await);
-    db_manager.add_pool(DatabaseType::MongoDB, mongo_pool);
     // Create the shared state
     let state = Arc::new(AppState {
         tx,

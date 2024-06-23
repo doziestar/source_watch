@@ -1,10 +1,14 @@
-use crate::db::query_builder::{
-    QueryBuilder, QueryBuilderError, QueryOperation, Operator, OrderDirection, Field, DatabasePool
+use crate::db::{
+    Database, DatabasePool,
+    query_builder::{QueryBuilder, QueryOperation, Operator, OrderDirection, Field}
 };
+use crate::utils::errors::{DatabaseError, QueryBuilderError};
 use async_trait::async_trait;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use tokio_postgres;
+use deadpool_postgres;
+use tokio_postgres::types::Type;
 
 pub fn build_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     let mut query = match builder.operation {
@@ -80,19 +84,118 @@ pub struct PostgresPool {
     pool: deadpool_postgres::Pool,
 }
 
+impl PostgresPool {
+    pub async fn new(connection_string: &str) -> Result<Self, DatabaseError> {
+        let config = connection_string.parse()
+            .map_err(|e| DatabaseError::ConnectionError(e.to_string()))?;
+        let pool = deadpool_postgres::Pool::new(config);
+        Ok(PostgresPool { pool })
+    }
+}
+
+#[async_trait]
+impl Database for PostgresPool {
+    async fn connect(connection_string: &str) -> Result<Self, DatabaseError> {
+        Self::new(connection_string).await
+    }
+
+    async fn disconnect(&self) -> Result<(), DatabaseError> {
+        // Deadpool handles connection cleanup automatically
+        Ok(())
+    }
+
+    async fn execute_query(&self, query: &str) -> Result<Vec<Value>, DatabaseError> {
+        let client = self.pool.get().await
+            .map_err(|e| DatabaseError::ConnectionError(e.to_string()))?;
+        let rows = client.query(query, &[]).await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        Ok(rows.into_iter().map(|row| {
+            let json: serde_json::Map<String, Value> = row.columns()
+                .iter()
+                .map(|column| (column.name().to_string(), postgres_value_to_json(&row, column)))
+                .collect();
+            Value::Object(json)
+        }).collect())
+    }
+
+    async fn list_databases(&self) -> Result<Vec<String>, DatabaseError> {
+        let query = "SELECT datname FROM pg_database WHERE datistemplate = false;";
+        let result = self.execute_query(query).await?;
+        Ok(result.into_iter().filter_map(|v| v.get("datname").and_then(|v| v.as_str()).map(String::from)).collect())
+    }
+
+    async fn list_collections(&self, database: &str) -> Result<Vec<String>, DatabaseError> {
+        let query = format!("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_catalog = '{}';", database);
+        let result = self.execute_query(&query).await?;
+        Ok(result.into_iter().filter_map(|v| v.get("table_name").and_then(|v| v.as_str()).map(String::from)).collect())
+    }
+
+    async fn get_schema(&self, database: &str, table: &str) -> Result<Value, DatabaseError> {
+        let query = format!(
+            "SELECT column_name, data_type, is_nullable
+             FROM information_schema.columns
+             WHERE table_schema = 'public'
+               AND table_catalog = '{}'
+               AND table_name = '{}';",
+            database, table
+        );
+        let result = self.execute_query(&query).await?;
+        Ok(Value::Array(result))
+    }
+}
+
 #[async_trait]
 impl DatabasePool for PostgresPool {
-    async fn execute(&self, query: &str, params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, QueryBuilderError> {
-        let client = self.pool.get().await.map_err(|e| QueryBuilderError::DatabaseError(e.to_string()))?;
-        let stmt = client.prepare(query).await.map_err(|e| QueryBuilderError::DatabaseError(e.to_string()))?;
-        let rows = client.query(&stmt, &params.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect::<Vec<_>>())
+    async fn execute(&self, query: &str, params: Vec<Value>) -> Result<Vec<HashMap<String, Value>>, DatabaseError> {
+        let client = self.pool.get().await
+            .map_err(|e| DatabaseError::ConnectionError(e.to_string()))?;
+        let stmt = client.prepare(query).await
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
+
+        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params.iter()
+            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        let rows = client.query(&stmt, &params)
             .await
-            .map_err(|e| QueryBuilderError::DatabaseError(e.to_string()))?;
+            .map_err(|e| DatabaseError::QueryError(e.to_string()))?;
 
         Ok(rows.into_iter().map(|row| {
             row.columns().iter().map(|column| {
-                (column.name().to_string(), row.get(column.name()))
+                (column.name().to_string(), postgres_value_to_json(&row, column))
             }).collect()
         }).collect())
+    }
+}
+
+fn postgres_value_to_json(row: &tokio_postgres::Row, column: &tokio_postgres::Column) -> Value {
+    let col_idx = column.ordinal();
+    match *column.type_() {
+        Type::BOOL => json!(row.get::<_, Option<bool>>(col_idx)),
+        Type::INT2 => json!(row.get::<_, Option<i16>>(col_idx)),
+        Type::INT4 => json!(row.get::<_, Option<i32>>(col_idx)),
+        Type::INT8 => json!(row.get::<_, Option<i64>>(col_idx)),
+        Type::FLOAT4 => json!(row.get::<_, Option<f32>>(col_idx)),
+        Type::FLOAT8 => json!(row.get::<_, Option<f64>>(col_idx)),
+        Type::VARCHAR | Type::TEXT | Type::BPCHAR => json!(row.get::<_, Option<String>>(col_idx)),
+        Type::JSON | Type::JSONB => json!(row.get::<_, Option<serde_json::Value>>(col_idx)),
+        Type::TIMESTAMP => {
+            let dt: Option<chrono::NaiveDateTime> = row.get(col_idx);
+            json!(dt.map(|d| d.to_string()))
+        },
+        Type::TIMESTAMPTZ => {
+            let dt: Option<chrono::DateTime<chrono::Utc>> = row.get(col_idx);
+            json!(dt.map(|d| d.to_rfc3339()))
+        },
+        Type::DATE => {
+            let d: Option<chrono::NaiveDate> = row.get(col_idx);
+            json!(d.map(|d| d.to_string()))
+        },
+        Type::TIME => {
+            let t: Option<chrono::NaiveTime> = row.get(col_idx);
+            json!(t.map(|t| t.to_string()))
+        },
+        _ => Value::Null,
     }
 }
