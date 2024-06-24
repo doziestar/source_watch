@@ -16,6 +16,7 @@ mod test {
         use tokio::net::TcpStream;
         use tokio_tungstenite::MaybeTlsStream;
         use tokio_tungstenite::WebSocketStream;
+        use crate::ws::state::AppState;
 
         pub struct TestApp {
             pub addr: SocketAddr,
