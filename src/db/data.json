@@ -1,14 +1,77 @@
 {
-  "database_type": "PostgreSQL",
-  "operation": "Select",
-  "table": "users",
-  "fields": ["id", "name", "email"],
-  "conditions": [
-    {"field": "age", "operator": "Gt", "value": "18"}
-  ],
-  "order_by": [
-    {"field": "name", "direction": "Asc"}
-  ],
-  "limit": 10,
-  "offset": 0
+  "psql": {
+    "database_type": "PostgreSQL",
+    "operation": "Select",
+    "table": "users",
+    "fields": ["id", "name", "email"],
+    "conditions": [
+      {"field": "age", "operator": "Gt", "value": "18"}
+    ],
+    "order_by": [
+      {"field": "name", "direction": "Asc"}
+    ],
+    "limit": 10,
+    "offset": 0
+  },
+    "mysql": {
+        "database_type": "MySQL",
+        "operation": "Select",
+        "table": "users",
+        "fields": ["id", "name", "email"],
+        "conditions": [
+        {"field": "age", "operator": "Gt", "value": "18"}
+        ],
+        "order_by": [
+        {"field": "name", "direction": "Asc"}
+        ],
+        "limit": 10,
+        "offset": 0
+    },
+    "mssql": {
+        "database_type": "MSSQL",
+        "operation": "Select",
+        "table": "users",
+        "fields": ["id", "name", "email"],
+        "conditions": [
+        {"field": "age", "operator": "Gt", "value": "18"}
+        ],
+        "order_by": [
+        {"field": "name", "direction": "Asc"}
+        ],
+        "limit": 10,
+        "offset": 0
+    },
+  "mongodb": {
+    "database_type": "MongoDB",
+    "operation": "Find",
+    "collection": "users",
+    "fields": ["id", "name", "email"],
+    "conditions": [
+      {"field": "age", "operator": "Gt", "value": "18"}
+    ],
+    "order_by": [
+      {"field": "name", "direction": "Asc"}
+    ],
+    "limit": 10,
+    "offset": 0
+  },
+    "cassandra": {
+        "database_type": "Cassandra",
+        "operation": "Select",
+        "table": "users",
+        "fields": ["id", "name", "email"],
+        "conditions": [
+        {"field": "age", "operator": "Gt", "value": "18"}
+        ],
+        "order_by": [
+        {"field": "name", "direction": "Asc"}
+        ],
+        "limit": 10,
+        "offset": 0
+    },
+  "redis": {
+    "database_type": "Redis",
+    "operation": "Get",
+    "key": "user:1"
+  }
 }

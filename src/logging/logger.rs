@@ -1,9 +1,5 @@
+use env_logger::Env;
 use log::{error, info, warn};
-
-pub fn init() {
-    env_logger::init();
-    info!("Logger initialized");
-}
 
 pub fn log_info(message: &str) {
     info!("{}", message);

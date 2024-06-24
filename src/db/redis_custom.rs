@@ -1,7 +1,6 @@
 use super::*;
 use crate::db::query_builder::{QueryBuilder, QueryOperation};
 use crate::utils::errors::{QueryBuilderError, DatabaseError};
-use redis::aio::MultiplexedConnection;
 
 pub fn build_query(builder: &QueryBuilder) -> Result<String, QueryBuilderError> {
     match builder.operation {
