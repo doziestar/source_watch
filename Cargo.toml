@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 iced = { version = "0.12.1", features = ["image", "debug", "tokio"] }
 tokio = { version = "1.38.0", features = ["full"] }
-diesel = { version = "2.2.0", features = ["postgres_backend", "postgres"] }
+diesel = { version = "2.2.3", features = ["postgres_backend", "postgres"] }
 mongodb = { version = "2.8.2"  }
 redis = { version = "0.25.4", features = ["aio", "tokio-comp"] }
 async-std = "1.12.0"
